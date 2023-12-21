@@ -109,7 +109,7 @@ func getConfig(configList []*BrokerConfig, brokers []string) (BrokerConfig, *kaf
 		}
 
 		if config.SecurityConfig != nil && config.SecurityConfig.AuthenticationType == saslScramAuth {
-			if err := configMap.SetKey("security.protocol", "SASL_PLAINTEXT"); err != nil {
+			if err := configMap.SetKey("security.protocol", "SASL_SSL"); err != nil {
 				return config, nil, err
 			}
 			if err := configMap.SetKey("sasl.mechanisms", "SCRAM-SHA-512"); err != nil {
