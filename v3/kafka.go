@@ -77,6 +77,8 @@ type KafkaClient struct {
 	// current writers
 	writers map[string]*kafka.Writer
 
+	highLevelClient *kafka.Client
+
 	// mutex to avoid runtime races to access subscribers map
 	ReadersLock sync.RWMutex
 
@@ -183,7 +185,12 @@ func newKafkaClient(brokers []string, prefix string, configList ...*BrokerConfig
 		readers:              make(map[string]*kafka.Reader),
 		writers:              make(map[string]*kafka.Writer),
 		topicSubscribedCount: make(map[string]int),
+		highLevelClient: &kafka.Client{
+			Addr:    kafka.TCP(brokers...),
+			Timeout: config.DialTimeout,
+		},
 	}
+
 	if config.MetricsRegistry != nil {
 		err = config.MetricsRegistry.Register(&kafkaprometheus.WriterCollector{Client: client})
 		if err != nil {
@@ -243,6 +250,16 @@ func (client *KafkaClient) Publish(publishBuilder *PublishBuilder) error {
 		go func(topic string) {
 			publishCtx, cancelPublish := context.WithTimeout(context.Background(), publishBuilder.timeout)
 			defer cancelPublish()
+
+			metadata, err := client.highLevelClient.Metadata(publishCtx, &kafka.MetadataRequest{
+				Addr:   kafka.TCP(client.publishConfig.Brokers...),
+				Topics: []string{topic},
+			})
+			if err != nil {
+				logrus.WithField("Topic", topic).Errorf("[METADATA] Unable to request metadata: %s", err.Error())
+			} else {
+				logrus.WithField("Topic", topic).Infof("[METADATA] Got metadata: %+v", metadata)
+			}
 
 			err = backoff.RetryNotify(func() error {
 				return client.publishEvent(publishCtx, topic, publishBuilder.eventName, config, message)
@@ -824,4 +841,21 @@ func newPublishBackoff() *backoff.ExponentialBackOff {
 	// For maxBackoffCount=4 we will get attempts: 0ms, 500ms, 2s, 8s, 16s.
 	backoff.Multiplier = 4.0
 	return backoff
+}
+
+// GetReaderStats returns stats for each subscriber, and its topic, eventName and groupID.
+func (client *KafkaClient) GetMetadata() (stats []kafka.ReaderStats, slugs []string) {
+	client.ReadersLock.RLock()
+	defer client.ReadersLock.RUnlock()
+
+	stats = make([]kafka.ReaderStats, 0, len(client.readers))
+	slugs = make([]string, 0, len(client.readers))
+	for slug, reader := range client.readers {
+		if reader == nil {
+			continue
+		}
+		slugs = append(slugs, slug)
+		stats = append(stats, reader.Stats())
+	}
+	return stats, slugs
 }
