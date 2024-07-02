@@ -17,6 +17,7 @@
 package kafkaprometheus
 
 import (
+	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -105,7 +106,9 @@ func (r *ReaderCollector) Collect(metrics chan<- prometheus.Metric) {
 		metrics <- gauge(readerFetchBytesAvg, float64(stat.FetchBytes.Avg), labels...)
 		metrics <- gauge(readerFetchBytesMax, float64(stat.FetchBytes.Max), labels...)
 
+		fmt.Println("SET OFFSET TO METRICS:", float64(stat.Offset))
 		metrics <- gauge(readerOffset, float64(stat.Offset), labels...)
+		fmt.Println("SET LAG TO METRICS:", float64(stat.Lag))
 		metrics <- gauge(readerLag, float64(stat.Lag), labels...)
 		metrics <- gauge(readerQueueLength, float64(stat.QueueLength), labels...)
 		metrics <- gauge(readerQueueCapacity, float64(stat.QueueCapacity), labels...)

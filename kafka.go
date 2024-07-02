@@ -795,6 +795,7 @@ func (client *KafkaClient) processStatsEvent(statsEvent string) {
 			if pKey == "-1" {
 				continue
 			}
+			fmt.Println("GOT STATS Lag:", p.ConsumerLag)
 			topicPartitionStats := statistics.TopicPartitionStats{
 				TxMessages:      p.Txmsgs,
 				TxBytes:         p.Txbytes,
@@ -805,6 +806,8 @@ func (client *KafkaClient) processStatsEvent(statsEvent string) {
 				QueueLength:     p.FetchqCnt,
 				QueueCapacity:   p.FetchqSize,
 			}
+			fmt.Println("SET STATS Lag:", topicPartitionStats.Lag)
+
 			switch kafkaStats.Type {
 			case consumerStatsType:
 				client.readerStats.TopicPartitionStats[topicPartitionStatsKey(k, pKey)] = topicPartitionStats
