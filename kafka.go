@@ -423,6 +423,7 @@ func (client *KafkaClient) listenProducerEvents(producer *kafka.Producer) {
 			// does not need to take action on them.
 			logrus.Error("kafka error: ", ev)
 		case *kafka.Stats:
+			fmt.Println(ev.String())
 			go client.processStatsEvent(ev.String())
 		}
 	}
@@ -716,6 +717,7 @@ func (client *KafkaClient) readMessages(subscribeCtx context.Context, reader *ka
 		case kafka.Error:
 			return nil, e
 		case *kafka.Stats:
+			fmt.Println(e.String())
 			go client.processStatsEvent(e.String())
 		default:
 		}
