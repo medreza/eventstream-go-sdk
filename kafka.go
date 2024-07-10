@@ -81,9 +81,6 @@ type KafkaClient struct {
 	// writer
 	writer *kafka.Producer
 
-	// map of writer error callbacks on each topic
-	writerErrorCallbacks map[string]func(_ *Event, err error)
-
 	// mutex to avoid runtime races to access subscribers map
 	ReadersLock sync.RWMutex
 
@@ -195,9 +192,6 @@ func newKafkaClient(brokers []string, prefix string, configList ...*BrokerConfig
 		}
 	}
 
-	// initialize empty writer error callbacks
-	client.writerErrorCallbacks = make(map[string]func(event *Event, err error))
-
 	// initialize empty stats
 	client.writerStats.BrokerStats = make(map[string]statistics.BrokerStats, 0)
 	client.writerStats.TopicStats = make(map[string]statistics.TopicStats, 0)
@@ -253,20 +247,12 @@ func (client *KafkaClient) Publish(publishBuilder *PublishBuilder) error {
 
 	topic := constructTopic(client.prefix, publishBuilder.topic)
 
-	if client.writerErrorCallbacks[topic] == nil && publishBuilder.errorCallback != nil {
-		client.writerErrorCallbacks[topic] = publishBuilder.errorCallback
-	}
-
 	err = client.publishEvent(topic, publishBuilder.eventName, config, message, false)
 	if err != nil {
 		logrus.
 			WithField("Topic Name", topic).
 			WithField("Event Name", publishBuilder.eventName).
 			Error("unable to publish event: ", err)
-
-		if publishBuilder.errorCallback != nil {
-			publishBuilder.errorCallback(nil, err)
-		}
 
 		return nil
 	}
@@ -423,9 +409,6 @@ func (client *KafkaClient) listenProducerEvents(producer *kafka.Producer) {
 			if ev.TopicPartition.Error != nil {
 				logrus.WithField("topic", *ev.TopicPartition.Topic).
 					Errorf("kafka message delivery failed: %s", ev.TopicPartition.Error.Error())
-				if client.writerErrorCallbacks[*ev.TopicPartition.Topic] != nil {
-					go client.writerErrorCallbacks[*ev.TopicPartition.Topic](nil, ev.TopicPartition.Error)
-				}
 			}
 		case kafka.Error:
 			// Generic client instance-level errors, such as
